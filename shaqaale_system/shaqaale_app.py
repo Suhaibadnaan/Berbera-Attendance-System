@@ -15,9 +15,9 @@ def edit_data(id_number, magaca, xafiiska, sababta, bixid, soo_labo, status):
     conn.commit()
     conn.close()
 
-# 2. Qaybta Interface-ka ee "🔍 Raadi & Maamul" ku beddel koodhkan:
-elif choice == "🔍 Raadi & Maamul":
-    st.title("🔍 Maamulka & Tirtirista Xogta")
+# 2. Qaybta Interface-ka ee " Raadi & Maamul" ku beddel koodhkan:
+elif choice == "Raadi & Maamul":
+    st.title("Maamulka & Tirtirista Xogta")
     
     # Raadinta
     search_term = st.text_input("Ku raadi Magac ama Xafiis:")
