@@ -81,22 +81,27 @@ df = pd.read_sql_query("SELECT * FROM shaqalaha", conn)
 conn.close()
 
 if choice == "Dashboard":
-    st.title("Dulmarka Guud ee Xafiiska")
+    st.title("📊 Dulmarka Guud ee Xafiiska")
     if not df.empty:
         col1, col2, col3 = st.columns(3)
         col1.metric("Wadar Guud", len(df))
         col2.metric("Hadda Maqan", len(df[df['status'] == 'Maqan']))
         col3.metric("Soo Laabtay", len(df[df['status'] == 'Wuu soo Laabtay']))
         
-        st.write("### Garaafka Shaqada")
-        st.bar_chart(df['xafiiska'].value_counts())
+        st.divider()
+        # Qaybta qurxinta Dashboard-ka (Tirada xafiis walba)
+        st.subheader("🏢 Tirada Maqnaanshaha ee Xafiis kasta")
+        office_counts = df[df['status'] == 'Maqan']['xafiiska'].value_counts().reset_index()
+        office_counts.columns = ['Xafiiska', 'Tirada Maqan']
+        st.table(office_counts) # Halkii garaafka, hadda waa qoraal jadwal ah
         
-        st.dataframe(df, use_container_width=True)
+        st.write("### 📝 Dhammaan Xogta")
+        st.dataframe(df.sort_values(by='id', ascending=False), use_container_width=True)
     else:
         st.info("Weli xog laguma darin.")
 
 elif choice == "Diiwaangeli Maqnaanshaha":
-    st.title("Diiwaangeli Shaqada Dibadda")
+    st.title("📝 Diiwaangeli Shaqada Dibadda")
     with st.form("entry_form"):
         col1, col2 = st.columns(2)
         with col1:
@@ -107,21 +112,55 @@ elif choice == "Diiwaangeli Maqnaanshaha":
             bixid = st.text_input("Waqtiga Bixidda", datetime.now().strftime("%I:%M %p"))
             soo_labo = st.text_input("Waqtiga soo Labashada", "02:00 PM")
         
-        if st.form_submit_button("Keydi"):
-            add_data(magaca, xafiiska, sababta, bixid, soo_labo, "Maqan")
-            st.success("Waa la keydiyey!")
-            st.rerun()
+        if st.form_submit_button("Keydi Macluumaadka"):
+            if magaca:
+                add_data(magaca, xafiiska, sababta, bixid, soo_labo, "Maqan")
+                st.success(f"Xogta {magaca} waa la keydiyey!")
+                st.rerun()
 
 elif choice == "Raadi iyo Maamul":
-    st.title("Maamulka iyo Tirtirista")
+    st.title("🔍 Raadi iyo Maamul")
     
-    # Date filter
-    start_date = st.date_input("Laga bilaabo")
-    search_df = df[pd.to_datetime(df['taariikh']) >= pd.Timestamp(start_date)]
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        search_name = st.text_input("Ku raadi Magac")
+    with col_s2:
+        start_date = st.date_input("Laga bilaabo Taariikhda")
     
-    st.dataframe(search_df, use_container_width=True)
+    # Filter-ka xogta
+    mask = (pd.to_datetime(df['taariikh']) >= pd.Timestamp(start_date))
+    if search_name:
+        mask = mask & (df['magaca'].str.contains(search_name, case=False))
     
-    edit_id = st.number_input("ID-ga wax ka beddel", step=1)
-    if st.button("Tirtir"):
-        delete_data(edit_id)
-        st.rerun()
+    filtered_df = df[mask]
+    st.dataframe(filtered_df, use_container_width=True)
+    
+    st.divider()
+    
+    # Qaybta Edit iyo Delete
+    col_m1, col_m2 = st.columns(2)
+    
+    with col_m1:
+        st.subheader("🔄 Wax ka beddel")
+        edit_id = st.number_input("Geli ID-ga", min_value=1, step=1)
+        if edit_id in df['id'].values:
+            row = df[df['id'] == edit_id].iloc[0]
+            with st.expander("Furi foomka beddelka"):
+                e_magaca = st.text_input("Magaca", value=row['magaca'])
+                e_xafiiska = st.selectbox("Xafiiska", ["IT Department", "HR", "Finance", "Administration", "Logistics"], index=["IT Department", "HR", "Finance", "Administration", "Logistics"].index(row['xafiiska']))
+                e_sababta = st.text_input("Sababta", value=row['sababta'])
+                e_status = st.selectbox("Status", ["Maqan", "Wuu soo Laabtay"], index=["Maqan", "Wuu soo Laabtay"].index(row['status']))
+                
+                if st.button("Cusboonaysii"):
+                    edit_data(edit_id, e_magaca, e_xafiiska, e_sababta, row['waqtiga_bixida'], row['waqtiga_soo_labashada'], e_status)
+                    st.success("Xogta waa la beddelay!")
+                    st.rerun()
+
+    with col_m2:
+        st.subheader("🗑️ Tirtir Xogta")
+        del_id = st.number_input("Geli ID-ga la tirtirayo", min_value=1, step=1)
+        if st.button("Tirtir Xogta", type="primary"):
+            if del_id in df['id'].values:
+                delete_data(del_id)
+                st.warning(f"ID {del_id} waa la tirtiray!")
+                st.rerun()
