@@ -2,7 +2,13 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
-import pywhatkit as kit
+# --- 1. CUSBOONAYSIIN: Hubinta haddii uu Server yahay ---
+try:
+    import pywhatkit as kit
+    WIKIT_AVAILABLE = True
+except Exception:
+    WIKIT_AVAILABLE = False
+    
 import time
 from fpdf import FPDF
 
@@ -40,7 +46,7 @@ def create_pdf(df, report_title):
         pdf.ln()
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. LOGIN PAGE (BEAUTIFIED) ---
+# --- 3. LOGIN PAGE ---
 def login_page():
     st.markdown("""
         <style>
@@ -89,14 +95,12 @@ if 'logged_in' not in st.session_state: st.session_state['logged_in'] = False
 if not st.session_state['logged_in']:
     login_page()
 else:
-    # Sidebar
     st.sidebar.title("🏢 BERBERA HR")
     st.sidebar.info(f"User: {st.session_state['user']} ({st.session_state['role']})")
-    
     menu = ["📊 Dashboard", "➕ Diiwaanka Cusub", "⏱️ Xadiiriska (ZKT)", "📂 Maareynta & Printing", "📩 WhatsApp", "⚙️ Settings"]
     choice = st.sidebar.selectbox("Menu", menu)
 
-    # A. DASHBOARD
+    # (A, B, C, D isku mid bay ahaanayaan...)
     if choice == "📊 Dashboard":
         st.title("📊 Dashboard-ka Guud")
         conn = sqlite3.connect('berbera_hr_system.db')
@@ -107,7 +111,6 @@ else:
         jooga = pd.read_sql_query(f"SELECT COUNT(*) FROM attendance WHERE taariikh='{maanta}'", conn).iloc[0,0]
         c2.metric("Jooga Maanta", jooga)
         c3.metric("Maqan", total - jooga)
-        
         st.divider()
         st.subheader("🔍 Baadhitaan Degdeg ah")
         search = st.text_input("Ku baadh Magaca ama ID...")
@@ -116,7 +119,6 @@ else:
             st.table(res)
         conn.close()
 
-    # B. DIIWAANGALINTA
     elif choice == "➕ Diiwaanka Cusub":
         st.subheader("📝 Diiwaangali Shaqaale Cusub")
         with st.form("Reg Form"):
@@ -129,13 +131,11 @@ else:
                 conn.close()
                 st.success("Shaqaalaha waa la keydiyey!")
 
-    # C. XADIIRISKA (UA300/ZKT Style)
     elif choice == "⏱️ Xadiiriska (ZKT)":
         st.subheader("⏱️ Xadiiriska UA300 - 7:00 AM / 12:00 PM")
         conn = sqlite3.connect('berbera_hr_system.db')
         df_s = pd.read_sql_query("SELECT * FROM shaqaale", conn)
         maanta = datetime.now().strftime("%Y-%m-%d")
-        
         for i, row in df_s.iterrows():
             col1, col2, col3 = st.columns([2, 1, 1])
             col1.write(f"👤 **{row['magaca']}**")
@@ -151,13 +151,11 @@ else:
                 st.error(f"Baxay: {t}")
         conn.close()
 
-    # D. MAAREYNTA & PRINTING
     elif choice == "📂 Maareynta & Printing":
         st.header("📂 Maareynta Xogta & PDF")
         conn = sqlite3.connect('berbera_hr_system.db')
         df_all = pd.read_sql_query("SELECT s.id, s.magaca, a.taariikh, a.soo_galis, a.bixitaan, a.status FROM shaqaale s LEFT JOIN attendance a ON s.id = a.shaqaale_id", conn)
         st.dataframe(df_all)
-        
         if st.session_state['role'] == "Admin":
             st.divider()
             target = st.number_input("ID-ga Shaqaalaha ee la wax ka badalayo", step=1)
@@ -183,33 +181,33 @@ else:
                     conn.execute("DELETE FROM shaqaale WHERE id=?", (target,))
                     conn.commit()
                     st.rerun()
-            
             if st.button("📥 Download PDF Report"):
                 pdf_bytes = create_pdf(df_all, "Warbixinta Guud ee HR Berbera")
                 st.download_button("Riix halkan si aad u dejiso", pdf_bytes, "Berbera_HR_Report.pdf")
         conn.close()
 
-    # E. WHATSAPP
+    # --- 📩 QAYBTA WHATSAPP-KA (OO LA SAXAY) ---
     elif choice == "📩 WhatsApp":
         st.subheader("📩 Dirista Fariimaha WhatsApp")
-        m_day = st.number_input("Maalmaha shaqada bishii", value=26)
-        if st.button("Dir Fariimaha Dhammaan"):
-            conn = sqlite3.connect('berbera_hr_system.db')
-            df_s = pd.read_sql_query("SELECT * FROM shaqaale", conn)
-            for _, row in df_s.iterrows():
-                yimid = pd.read_sql_query(f"SELECT COUNT(*) FROM attendance WHERE shaqaale_id={row['id']} AND status='Present'", conn).iloc[0,0]
-                fariin = f"Asalaamu Calaykum {row['magaca']}, waxaa kuu diiwaangashan {m_day - yimid} maalmood oo maqnaansho ah."
-                kit.sendwhatmsg_instantly(f"+{row['tel']}", fariin, 15, True)
-                st.toast(f"Loo diray {row['magaca']}")
-            conn.close()
+        if not WIKIT_AVAILABLE:
+            st.error("⚠️ Fariimaha WhatsApp waxaa laga diri karaa oo kaliya laptop-kaaga (Localhost). Streamlit Cloud ma diri karo WhatsApp sababtoo ah ma laha screen.")
+        else:
+            m_day = st.number_input("Maalmaha shaqada bishii", value=26)
+            if st.button("Dir Fariimaha Dhammaan"):
+                conn = sqlite3.connect('berbera_hr_system.db')
+                df_s = pd.read_sql_query("SELECT * FROM shaqaale", conn)
+                for _, row in df_s.iterrows():
+                    yimid = pd.read_sql_query(f"SELECT COUNT(*) FROM attendance WHERE shaqaale_id={row['id']} AND status='Present'", conn).iloc[0,0]
+                    fariin = f"Asalaamu Calaykum {row['magaca']}, waxaa kuu diiwaangashan {m_day - yimid} maalmood oo maqnaansho ah."
+                    kit.sendwhatmsg_instantly(f"+{row['tel']}", fariin, 15, True)
+                    st.toast(f"Loo diray {row['magaca']}")
+                conn.close()
 
-    # F. SETTINGS
     elif choice == "⚙️ Settings":
         st.header("⚙️ Maamulka User-ada")
         conn = sqlite3.connect('berbera_hr_system.db')
         df_users = pd.read_sql_query("SELECT username, role FROM users", conn)
         st.table(df_users)
-        
         if st.session_state['role'] == "Admin":
             with st.expander("Ku dar User Cusub"):
                 new_u = st.text_input("Username")
@@ -219,7 +217,6 @@ else:
                     conn.execute("INSERT INTO users VALUES (?,?,?)", (new_u, new_p, new_r))
                     conn.commit()
                     st.rerun()
-            
             del_u = st.text_input("Username-ka la tirtirayo")
             if st.button("Tirtir User"):
                 conn.execute("DELETE FROM users WHERE username=?", (del_u,))
